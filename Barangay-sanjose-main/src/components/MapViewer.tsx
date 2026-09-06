@@ -1,19 +1,19 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { HazardAlert, MapSettings } from '../types';
-import { 
-  SAN_JOSE_POLYGON_COORDS, 
-  SAN_JOSE_CENTER, 
+import {
+  SAN_JOSE_POLYGON_COORDS,
+  SAN_JOSE_CENTER,
   SAN_JOSE_BOUNDS,
   SAN_JOSE_SITIOS,
-  getInvertedMaskCoordinates 
+  getInvertedMaskCoordinates
 } from '../data/geoData';
-import { 
-  Layers, 
-  Maximize2, 
-  RotateCcw,
+import {
+  Layers,
   RefreshCw,
-  Eye, 
+  Maximize2,
+  RotateCcw,
+  Eye,
   Compass,
   MapPin,
   Flame,
@@ -22,6 +22,7 @@ import {
   Droplets,
   AlertTriangle,
   CheckCircle2
+  ,LocateFixed
 } from 'lucide-react';
 
 interface MapViewerProps {
@@ -78,10 +79,10 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
   const [mouseCoords, setMouseCoords] = React.useState<{ lat: number; lng: number } | null>(null);
   const [showLayerMenu, setShowLayerMenu] = React.useState(false);
+  const [showFloodProneBlank, setShowFloodProneBlank] = React.useState(false);
   const [isRecenterSpinning, setIsRecenterSpinning] = React.useState(false);
-
-  const effectiveTileLayer = isAddingPinMode ? 'streets' : mapSettings.tileLayer;
-  const effectiveMaskOpacity = isAddingPinMode ? 0 : mapSettings.maskOpacity;
+  const [isLocating, setIsLocating] = React.useState(false);
+  const userLocationMarkerRef = useRef<L.Marker | null>(null);
 
   // 1. Initialize Map
   useEffect(() => {
@@ -94,7 +95,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
     const map = L.map(mapContainerRef.current, {
       center: SAN_JOSE_CENTER,
-      zoom: 14,
+      zoom: 13,
       minZoom: 13,
       maxZoom: 18,
       maxBounds: mapSettings.lockCameraToBounds ? maxBounds : undefined,
@@ -107,7 +108,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     // Initial Tile Layer
-    const tileConfig = TILE_SERVERS[effectiveTileLayer];
+    const tileConfig = TILE_SERVERS[mapSettings.tileLayer];
     const tileLayer = L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
       maxZoom: 19,
@@ -118,7 +119,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const maskCoords = getInvertedMaskCoordinates(SAN_JOSE_POLYGON_COORDS);
     const mask = L.polygon(maskCoords as any, {
       fillColor: mapSettings.maskColor,
-      fillOpacity: effectiveMaskOpacity,
+      fillOpacity: mapSettings.maskOpacity,
       stroke: false,
       interactive: false,
       className: 'gis-blackout-mask'
@@ -179,9 +180,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   // 2. Update Tile Layer on setting change
   useEffect(() => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
-    const targetTile = isAddingPinMode ? 'streets' : mapSettings.tileLayer;
-    const tileConfig = TILE_SERVERS[targetTile];
-    mapInstanceRef.current.removeLayer(tileLayerRef.current);
+    const map = mapInstanceRef.current;
+    const tileConfig = TILE_SERVERS[mapSettings.tileLayer];
+
+    // Coming back from Flood Prone mode the container was hidden (display:none),
+    // so Leaflet cached a zero size and renders a blank map. Recompute now that
+    // the container is visible again.
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 50);
+
+    map.removeLayer(tileLayerRef.current);
     const newLayer = L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
       maxZoom: 19,
@@ -209,16 +218,14 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         }
       });
     }
-  }, [effectiveTileLayer, isAddingPinMode, mapSettings.tileLayer]);
+  }, [mapSettings.tileLayer]);
 
   // 3. Update Mask Opacity, Mask Color, and Boundary Stroke
   useEffect(() => {
     if (maskLayerRef.current) {
       maskLayerRef.current.setStyle({
         fillColor: mapSettings.maskColor,
-        fillOpacity: effectiveMaskOpacity,
-        opacity: effectiveMaskOpacity,
-        display: effectiveMaskOpacity > 0 ? 'block' : 'none',
+        fillOpacity: mapSettings.maskOpacity,
       });
     }
     if (boundaryLayerRef.current) {
@@ -227,14 +234,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         opacity: mapSettings.showBoundaryStroke ? 0.9 : 0,
       });
     }
-
-    if (mapInstanceRef.current) {
-      const mapContainer = mapInstanceRef.current.getContainer();
-      mapContainer.style.background = 'transparent';
-      mapContainer.style.filter = 'none';
-      mapContainer.style.opacity = '1';
-    }
-  }, [effectiveMaskOpacity, mapSettings.maskColor, mapSettings.boundaryColor, mapSettings.showBoundaryStroke, isAddingPinMode]);
+  }, [mapSettings.maskOpacity, mapSettings.maskColor, mapSettings.boundaryColor, mapSettings.showBoundaryStroke]);
 
   // 4. Update Camera Bounds lock
   useEffect(() => {
@@ -249,6 +249,22 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       mapInstanceRef.current.setMaxBounds(null as any);
     }
   }, [mapSettings.lockCameraToBounds]);
+
+  // 4b. Recompute map size when returning from Flood Prone mode.
+  // While Flood Prone is active the real map is display:none, so Leaflet caches
+  // a zero size and shows a blank map when the container becomes visible again.
+  useEffect(() => {
+    if (showFloodProneBlank) return; // entering: container hidden, skip
+    if (!mapInstanceRef.current) return;
+    // exiting: container is visible again — force Leaflet to remeasure
+    const t1 = setTimeout(() => mapInstanceRef.current?.invalidateSize(), 60);
+    const t2 = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+      // re-center as a safety net in case the view got stuck while hidden
+      mapInstanceRef.current?.setView(SAN_JOSE_CENTER, 13, { animate: false });
+    }, 250);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [showFloodProneBlank]);
 
   // 5. Render Sitios Labels
   useEffect(() => {
@@ -272,6 +288,51 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       sitiosLayerRef.current?.addLayer(marker);
     });
   }, [mapSettings.showSitioLabels]);
+
+  useEffect(() => {
+    return () => {
+      userLocationMarkerRef.current?.remove();
+      userLocationMarkerRef.current = null;
+    };
+  }, []);
+
+  const handleShowUserLocation = () => {
+    if (!navigator.geolocation || !mapInstanceRef.current) return;
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coordinates: L.LatLngExpression = [
+          position.coords.latitude,
+          position.coords.longitude,
+        ];
+        const locationIcon = L.divIcon({
+          className: 'user-location-marker',
+          html: '<span class="user-location-dot"></span>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+
+        if (userLocationMarkerRef.current) {
+          userLocationMarkerRef.current.setLatLng(coordinates);
+          userLocationMarkerRef.current.setIcon(locationIcon);
+        } else {
+          userLocationMarkerRef.current = L.marker(coordinates, {
+            icon: locationIcon,
+            zIndexOffset: 1000,
+            title: 'Your location',
+          }).addTo(mapInstanceRef.current!);
+        }
+        mapInstanceRef.current?.flyTo(coordinates, 16, {
+          duration: 1.6,
+          easeLinearity: 0.25,
+        });
+        setIsLocating(false);
+      },
+      () => setIsLocating(false),
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
+    );
+  };
 
   // 6. Render Custom Hazard Markers with SVG / Emoji Icons and Popups
   useEffect(() => {
@@ -402,7 +463,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 ${severityBadge}
               </div>
             </div>
-            
+
             <div class="flex items-start justify-between pt-0.5">
               <span class="text-slate-400 font-medium text-[11px] shrink-0">Street:</span>
               <span class="font-semibold text-right text-slate-800 text-[11px]">${alert.streetName}</span>
@@ -433,8 +494,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <!-- Footer Actions -->
           <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
             <span class="text-[10px] text-slate-400 truncate max-w-[120px]">By: ${alert.reportedBy}</span>
-            <button 
-              id="btn-popup-toggle-${alert.id}" 
+            <button
+              id="btn-popup-toggle-${alert.id}"
               class="px-2.5 py-1 text-xs font-semibold rounded ${isResolved ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs'} transition-colors cursor-pointer"
             >
               ${isResolved ? 'Re-open Alert' : 'Mark Resolved'}
@@ -475,7 +536,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   useEffect(() => {
     if (!selectedAlert || !mapInstanceRef.current) return;
     const targetMarker = activePopupsRef.current[selectedAlert.id];
-    
+
     mapInstanceRef.current.flyTo(selectedAlert.coordinates, 16, {
       duration: 1.2,
       easeLinearity: 0.25,
@@ -499,12 +560,12 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     setIsRecenterSpinning(true);
     setTimeout(() => setIsRecenterSpinning(false), 550);
     if (!mapInstanceRef.current) return;
-    
+
     // Close any active open popups
     mapInstanceRef.current.closePopup();
-    
+
     // Smooth fast recenter back to Barangay San Jose center
-    mapInstanceRef.current.flyTo(SAN_JOSE_CENTER, 14, {
+    mapInstanceRef.current.flyTo(SAN_JOSE_CENTER, 13, {
       duration: 0.75,
       easeLinearity: 0.25,
     });
@@ -513,11 +574,24 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   return (
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
       {/* The Leaflet Map Canvas */}
-      <div 
+      {/* NOTE: the map container is NEVER hidden now. In Flood Prone mode the
+          iframe simply renders on top of it (z-30 overlay below). Hiding the
+          container made Leaflet cache a zero size and return a blank map. */}
+      <div
         id="leaflet-map-root"
-        ref={mapContainerRef} 
-        className={`w-full h-full ${isAddingPinMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
+        ref={mapContainerRef}
+        className={`block w-full h-full ${isAddingPinMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
       />
+
+      {showFloodProneBlank && (
+        <div className="absolute inset-0 z-30 bg-white" aria-label="Rizal Flood Hazard Map">
+          <iframe
+            title="Rizal Flood Hazard Map (100-year)"
+            src={`${import.meta.env.BASE_URL}rizal_flood_100yr_map.html`}
+            className="h-full w-full border-0"
+          />
+        </div>
+      )}
 
       {/* Adding Pin Active Overlay Banner */}
       {isAddingPinMode && (
@@ -528,7 +602,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       )}
 
       {/* Live Coordinate Display (Bottom Left) */}
-      <div className="absolute bottom-4 left-4 z-10 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900/90 backdrop-blur-md text-slate-200 border border-slate-800 shadow-md text-[10px] font-mono">
+      <div className="absolute bottom-14 left-4 z-10 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900/90 backdrop-blur-md text-slate-200 border border-slate-800 shadow-md text-[10px] font-mono">
         <Compass className="w-3.5 h-3.5 text-blue-400" />
         <span className="font-semibold text-white">BRGY. SAN JOSE</span>
         <span className="text-slate-600">|</span>
@@ -542,8 +616,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       </div>
 
       {/* Floating GIS Map Controls (Top Left) */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
-        {/* Recenter / Fit Bounds Button */}
+      <div className={`absolute flex flex-col gap-1.5 ${showFloodProneBlank ? 'left-4 top-4 z-40' : 'left-4 top-4 z-10'}`}>
         <button
           id="btn-recenter-gis"
           onClick={handleRecenter}
@@ -559,7 +632,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             id="btn-toggle-layers-menu"
             onClick={() => setShowLayerMenu(!showLayerMenu)}
             title="GIS Layers & Masking Settings"
-            className="p-2 rounded-md bg-white hover:bg-slate-50 text-slate-800 shadow-xs border border-slate-200 transition-colors"
+            className="p-2 rounded-md bg-white hover:bg-slate-50 text-slate-800 shadow-xs border border-slate-200 transition-colors active:scale-95 cursor-pointer"
           >
             <Layers className="w-4 h-4 text-slate-700" />
           </button>
@@ -567,8 +640,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           {showLayerMenu && (
             <div className="absolute top-0 left-11 w-64 bg-white rounded-lg shadow-lg border border-slate-200 p-3.5 text-xs text-slate-800 space-y-3 z-30 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">GIS Map Settings</span>
-                <button 
+                <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">MAP SETTINGS</span>
+                <button
                   onClick={() => setShowLayerMenu(false)}
                   className="text-slate-400 hover:text-slate-600 text-xs font-bold"
                 >
@@ -579,20 +652,28 @@ export const MapViewer: React.FC<MapViewerProps> = ({
               {/* Base Map Style */}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
-                  Basemap Street Style:
+                  BASEMAP STYLE:
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {(['streets', 'light', 'dark', 'satellite'] as const).map((layer) => (
                     <button
                       key={layer}
-                      onClick={() => onUpdateMapSettings({ tileLayer: layer })}
+                      onClick={() => {
+                        if (layer === 'light') {
+                          setShowFloodProneBlank(true);
+                          setShowLayerMenu(false);
+                          return;
+                        }
+                        setShowFloodProneBlank(false);
+                        onUpdateMapSettings({ tileLayer: layer });
+                      }}
                       className={`px-2 py-1 rounded-md text-xs font-semibold capitalize border transition-colors ${
                         mapSettings.tileLayer === layer
                           ? 'bg-slate-900 text-white border-slate-900'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      {layer}
+                      {layer === 'light' ? 'Flood Prone' : layer}
                     </button>
                   ))}
                 </div>
@@ -619,7 +700,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 />
                 <div className="flex justify-between text-[9px] text-slate-400 mt-0.5 font-medium">
                   <span>Subtle (30%)</span>
-                  <span className="text-slate-700 font-bold">Default 90%</span>
+                  <span className="text-slate-700 font-bold">Default 30%</span>
                   <span>Pitch (100%)</span>
                 </div>
               </div>
@@ -637,16 +718,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 </label>
 
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-slate-700 font-medium">Sitio / Zone Labels</span>
-                  <input
-                    type="checkbox"
-                    checked={mapSettings.showSitioLabels}
-                    onChange={(e) => onUpdateMapSettings({ showSitioLabels: e.target.checked })}
-                    className="w-3.5 h-3.5 accent-blue-600 rounded"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer">
                   <span className="text-slate-700 font-medium">Lock Camera Inside Bounds</span>
                   <input
                     type="checkbox"
@@ -659,10 +730,20 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             </div>
           )}
         </div>
+
+        <button
+          id="btn-show-user-location"
+          onClick={handleShowUserLocation}
+          title="Show your location"
+          aria-label="Show your location"
+          className="rounded-md border border-slate-200 bg-white p-2 text-slate-800 shadow-xs transition-colors hover:bg-slate-50 active:scale-95"
+        >
+          <LocateFixed className={`h-4 w-4 ${isLocating ? 'animate-pulse text-blue-600' : 'text-slate-700'}`} />
+        </button>
       </div>
 
       {/* Floating Legend / Quick Map Info Pill (Bottom Right) */}
-      <div className="absolute bottom-4 right-4 z-10 hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 shadow-xs text-xs">
+      <div className="absolute bottom-4 left-4 z-10 hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 shadow-xs text-xs">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-red-500"></span>
           <span className="text-slate-700 font-semibold text-[11px]">Fire</span>

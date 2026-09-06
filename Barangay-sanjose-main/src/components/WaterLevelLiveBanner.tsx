@@ -19,11 +19,6 @@ export const WaterLevelLiveBanner: React.FC<WaterLevelLiveBannerProps> = ({
   onOpenEditModal,
   onRemoveLive,
 }) => {
-  // STRICT RULE: IF NO LIVE URL IS PROVIDED, RENDER ABSOLUTELY NOTHING
-  if (!liveUrl || liveUrl.trim() === '') {
-    return null;
-  }
-
   const [liveTimestamp, setLiveTimestamp] = useState<string>('');
 
   useEffect(() => {
@@ -43,6 +38,12 @@ export const WaterLevelLiveBanner: React.FC<WaterLevelLiveBannerProps> = ({
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // STRICT RULE: IF NO LIVE URL IS PROVIDED, RENDER ABSOLUTELY NOTHING
+  // (kept below the hooks above so hook order never changes between renders)
+  if (!liveUrl || liveUrl.trim() === '') {
+    return null;
+  }
 
   // Determine embed source (Facebook, YouTube, or generic iframe)
   const getEmbedUrl = (url: string): { type: 'fb' | 'youtube' | 'iframe'; embedSrc: string } => {

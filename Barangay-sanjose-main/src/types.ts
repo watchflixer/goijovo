@@ -20,6 +20,7 @@ export interface HazardAlert {
   affectedHouseholds?: string;
   evacuationCenter?: string;
   contactNumber?: string;
+  reporterEmail?: string;
   updatesCount?: number;
   lastUpdated?: string;
 }
@@ -32,7 +33,7 @@ export interface SitioLocation {
 }
 
 export interface MapSettings {
-  maskOpacity: number; // 0.5 to 1.0 (default: 0.98 for solid blackout)
+  maskOpacity: number; // 0.3 to 1.0 (default: 0.30 for subtle blackout)
   maskColor: string; // '#000000' or '#0b0f19'
   tileLayer: 'streets' | 'light' | 'dark' | 'satellite';
   showBoundaryStroke: boolean;

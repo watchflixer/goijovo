@@ -31,12 +31,13 @@ function normalizeRow(row) {
     return null;
   };
   return {
-    name: get('stnNm', 'stationName', 'obsNm', 'name') || 'Rodriguez',
+    name: get('stnNm', 'stationName', 'obsNm', 'obsnm', 'name') || 'Rodriguez',
     landmark: 'San Jose Bridge',
     currentLevel: get('wl', 'nowWl', 'currentWl', 'current'),
-    alertLevel: get('alertWl', 'alert', 'wl1'),
-    alarmLevel: get('alarmWl', 'alarm', 'wl2'),
-    criticalLevel: get('seriousWl', 'critical', 'wl3'),
+    alertLevel: get('alertWl', 'alertwl', 'alert', 'wl1'),
+    alarmLevel: get('alarmWl', 'alarmwl', 'alarm', 'wl2'),
+    criticalLevel: get('seriousWl', 'criticalwl', 'critical', 'wl3'),
+    unit: 'm',
     raw: row,
   };
 }

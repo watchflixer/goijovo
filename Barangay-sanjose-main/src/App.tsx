@@ -6,20 +6,16 @@ import { AddHazardModal } from './components/AddHazardModal';
 import { EmergencyHotlinesModal } from './components/EmergencyHotlinesModal';
 import { LiveStreamModal } from './components/LiveStreamModal';
 import { PagasaFloodStatus } from './components/PagasaFloodStatus';
+import { EvacuationCentersModal } from './components/EvacuationCentersModal';
+import { UpdatesModal } from './components/UpdatesModal';
+import { ResolvedModal } from './components/ResolvedModal';
+import { HistoryModal } from './components/HistoryModal';
+import { LocationPickerModal } from './components/LocationPickerModal';
+import { AiAssistant } from './components/AiAssistant';
 import { HazardAlert, MapSettings, HazardType, HazardStatus } from './types';
 import { INITIAL_HAZARDS, SAN_JOSE_POLYGON_COORDS } from './data/geoData';
 import { useFloodStatus } from './hooks/useFloodStatus';
 import { classifyFloodLevel, SAN_JOSE_BRIDGE_COORDS, AUTO_FLOOD_ALERT_ID } from './lib/flood';
-
-const DEFAULT_WGS84_COORDS: [number, number] = [14.7425, 121.1310];
-
-const normalizeWgs84Coordinates = (coords: [number, number] | null | undefined): [number, number] => {
-  if (!coords || !Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
-    return DEFAULT_WGS84_COORDS;
-  }
-
-  return [Number(coords[0]), Number(coords[1])];
-};
 
 export default function App() {
   const [alerts, setAlerts] = useState<HazardAlert[]>(INITIAL_HAZARDS);
@@ -29,7 +25,12 @@ export default function App() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isHotlinesModalOpen, setIsHotlinesModalOpen] = useState(false);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
+  const [isEvacuationModalOpen, setIsEvacuationModalOpen] = useState(false);
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
+  const [isResolvedModalOpen, setIsResolvedModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isAddingPinMode, setIsAddingPinMode] = useState(false);
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const [pickedCoordinates, setPickedCoordinates] = useState<[number, number] | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recenterCount, setRecenterCount] = useState(0);
@@ -39,12 +40,12 @@ export default function App() {
 
   // Map and GIS settings
   const [mapSettings, setMapSettings] = useState<MapSettings>({
-    maskOpacity: 0.90, // Default 90% blackout for surrounding areas (San Mateo, Macabud, Burgos, QC)
+    maskOpacity: 0.30, // Default 30% blackout for surrounding areas (San Mateo, Macabud, Burgos, QC)
     maskColor: '#000000',
     tileLayer: 'streets',
     showBoundaryStroke: true,
     boundaryColor: '#10b981',
-    showSitioLabels: true,
+    showSitioLabels: false,
     lockCameraToBounds: true,
     autoCenterOnSelect: true,
     activeFilterType: 'all',
@@ -132,15 +133,15 @@ export default function App() {
   };
 
   const handleMapClickCoordinate = (coords: [number, number]) => {
-    const normalized = normalizeWgs84Coordinates(coords);
-    setPickedCoordinates(normalized);
+    setPickedCoordinates(coords);
     setIsAddingPinMode(false);
-    setMapSettings((prev) => ({
-      ...prev,
-      tileLayer: 'streets',
-      maskOpacity: 0.9,
-    }));
     setIsReportModalOpen(true);
+  };
+
+  const resolvedAlerts = alerts.filter((a) => a.status === 'resolved');
+
+  const handleFilterToResolved = () => {
+    setMapSettings((prev) => ({ ...prev, activeFilterStatus: 'resolved' }));
   };
 
   const handleResetMap = () => {
@@ -168,6 +169,10 @@ export default function App() {
         setMobileMenuOpen={setMobileMenuOpen}
         hasLiveUrl={!!liveStreamUrl}
         onOpenLiveModal={() => setIsLiveModalOpen(true)}
+        onOpenUpdates={() => setIsUpdatesModalOpen(true)}
+        onOpenEvacuationCenters={() => setIsEvacuationModalOpen(true)}
+        onOpenResolvedCleared={() => setIsResolvedModalOpen(true)}
+        onOpenHistory={() => setIsHistoryModalOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -220,6 +225,7 @@ export default function App() {
             recenterTrigger={recenterCount}
           />
           <PagasaFloodStatus />
+          <AiAssistant alerts={alerts} onOpenHotlines={() => setIsHotlinesModalOpen(true)} />
         </main>
       </div>
 
@@ -230,12 +236,18 @@ export default function App() {
         onAddAlert={handleAddAlert}
         selectedCoordinates={pickedCoordinates}
         onEnablePickCoordinateMode={() => {
-          setIsAddingPinMode(true);
-          setMapSettings((prev) => ({
-            ...prev,
-            tileLayer: 'streets',
-            maskOpacity: 0,
-          }));
+          setIsAddingPinMode(false);
+          setIsLocationPickerOpen(true);
+        }}
+      />
+      <LocationPickerModal
+        isOpen={isLocationPickerOpen}
+        initialCoordinates={pickedCoordinates}
+        onClose={() => setIsLocationPickerOpen(false)}
+        onSelect={(coordinates) => {
+          setPickedCoordinates(coordinates);
+          setIsLocationPickerOpen(false);
+          setIsReportModalOpen(true);
         }}
       />
 
@@ -251,6 +263,45 @@ export default function App() {
         onClose={() => setIsLiveModalOpen(false)}
         currentLiveUrl={liveStreamUrl}
         onSaveLiveUrl={(url) => setLiveStreamUrl(url)}
+      />
+
+      {/* Evacuation Centers Directory Modal */}
+      <EvacuationCentersModal
+        isOpen={isEvacuationModalOpen}
+        onClose={() => setIsEvacuationModalOpen(false)}
+      />
+
+      {/* Live Updates / Activity Feed Modal */}
+      <UpdatesModal
+        isOpen={isUpdatesModalOpen}
+        onClose={() => setIsUpdatesModalOpen(false)}
+        alerts={alerts}
+        onOpenReportModal={() => {
+          setIsUpdatesModalOpen(false);
+          setPickedCoordinates(null);
+          setIsReportModalOpen(true);
+        }}
+        onOpenLiveModal={() => {
+          setIsUpdatesModalOpen(false);
+          setIsLiveModalOpen(true);
+        }}
+        hasLiveUrl={!!liveStreamUrl}
+      />
+
+      {/* Resolved / Cleared Hazards Modal */}
+      <ResolvedModal
+        isOpen={isResolvedModalOpen}
+        onClose={() => setIsResolvedModalOpen(false)}
+        resolvedAlerts={resolvedAlerts}
+        onFilterToResolved={handleFilterToResolved}
+        onSelectAlert={handleSelectAlert}
+      />
+
+      {/* Full Incident History Modal */}
+      <HistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        alerts={alerts}
       />
     </div>
   );

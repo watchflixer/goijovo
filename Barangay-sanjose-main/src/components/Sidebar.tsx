@@ -130,14 +130,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </h2>
             <p className="text-[10px] text-slate-500 font-medium">Verified reports in Barangay San Jose</p>
           </div>
-          <button
-            id="btn-sidebar-report"
-            onClick={onOpenReportModal}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md shadow-2xs transition-colors"
-          >
-            <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Report</span>
-          </button>
         </div>
 
         {/* Search Bar */}

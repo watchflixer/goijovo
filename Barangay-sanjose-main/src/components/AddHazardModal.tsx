@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Flame, 
@@ -14,11 +14,10 @@ import {
   Upload,
   Image as ImageIcon,
   CheckCircle2,
-  AlertCircle,
-  Sparkles
+  AlertCircle
 } from 'lucide-react';
 import { HazardAlert, HazardType, HazardSeverity } from '../types';
-import { SAN_JOSE_SITIOS } from '../data/geoData';
+import { INITIAL_HAZARDS, SAN_JOSE_SITIOS } from '../data/geoData';
 import kasiglahanFloodImg from '../assets/images/kasiglahan_flood_rizal_1788211116468.jpg';
 import litexFireImg from '../assets/images/litex_transformer_fire_1788211132714.jpg';
 import sanJoseDownedPowerImg from '../assets/images/sanjose_downed_powerline_1788211148418.jpg';
@@ -87,20 +86,36 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
   const [sitio, setSitio] = useState(SAN_JOSE_SITIOS[0].name);
   const [severity, setSeverity] = useState<HazardSeverity>('high');
   const [description, setDescription] = useState('');
-  const [reportedBy, setReportedBy] = useState('Barangay San Jose Resident');
-  const [evacuationCenter, setEvacuationCenter] = useState('');
+  const [reportedBy, setReportedBy] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [reporterEmail, setReporterEmail] = useState('');
   
   // Photo verification state
   const [photoUrl, setPhotoUrl] = useState<string>('');
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const safeCoordinates: [number, number] = selectedCoordinates && Number.isFinite(selectedCoordinates[0]) && Number.isFinite(selectedCoordinates[1])
-    ? [Number(selectedCoordinates[0]), Number(selectedCoordinates[1])]
-    : [14.7425, 121.1310];
+  useEffect(() => {
+    if (!selectedCoordinates) return;
 
-  const lat = Number(safeCoordinates[0].toFixed(5));
-  const lng = Number(safeCoordinates[1].toFixed(5));
+    const [latitude, longitude] = selectedCoordinates;
+    const distanceTo = (coordinates: [number, number]) =>
+      Math.hypot(latitude - coordinates[0], longitude - coordinates[1]);
+
+    const nearestSitio = SAN_JOSE_SITIOS.reduce((nearest, sitio) =>
+      distanceTo(sitio.coordinates) < distanceTo(nearest.coordinates) ? sitio : nearest
+    );
+    const nearestKnownLocation = INITIAL_HAZARDS.reduce((nearest, alert) =>
+      distanceTo(alert.coordinates) < distanceTo(nearest.coordinates) ? alert : nearest
+    );
+
+    setSitio(nearestSitio.name);
+    setStreetName(nearestKnownLocation.streetName);
+  }, [selectedCoordinates]);
+
+  // Default coordinate if none selected
+  const lat = selectedCoordinates ? selectedCoordinates[0] : 14.7430;
+  const lng = selectedCoordinates ? selectedCoordinates[1] : 121.1330;
 
   if (!isOpen) return null;
 
@@ -123,17 +138,9 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleUsePresetPhoto = () => {
-    const preset = PRESET_SAMPLE_PHOTOS[type];
-    if (preset) {
-      setPhotoUrl(preset.url);
-      setPhotoError(null);
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !streetName.trim()) return;
+    if (!title.trim() || !streetName.trim() || !reportedBy.trim() || !contactNumber.trim() || !reporterEmail.trim()) return;
 
     // Strict Photo Requirement to prevent fake reports
     if (!photoUrl.trim()) {
@@ -151,8 +158,9 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
       severity,
       description: description.trim() || `${type.toUpperCase()} hazard reported along ${streetName}`,
       reportedBy: reportedBy.trim() || 'Citizen Report',
+      contactNumber: contactNumber.trim(),
+      reporterEmail: reporterEmail.trim(),
       photoUrl: photoUrl.trim(),
-      evacuationCenter: evacuationCenter.trim() || undefined,
       updatesCount: 1,
       lastUpdated: 'Just now'
     });
@@ -163,7 +171,9 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
     setDescription('');
     setPhotoUrl('');
     setPhotoError(null);
-    setEvacuationCenter('');
+    setReportedBy('');
+    setContactNumber('');
+    setReporterEmail('');
   };
 
   return (
@@ -309,7 +319,7 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
                 <span>Kailangang Litrato / Photo Verification *</span>
               </label>
               <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                Anti-Fake Report Required
+                Anti-Fake Report
               </span>
             </div>
 
@@ -355,15 +365,8 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    type="button"
-                    onClick={handleUsePresetPhoto}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded border border-blue-200 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-blue-500" />
-                    <span>Auto-attach Sample {type.toUpperCase()} Photo</span>
-                  </button>
+                <div className="pt-1 text-[11px] font-semibold text-rose-600">
+                  *Required
                 </div>
               </div>
             )}
@@ -482,13 +485,43 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Reported By
+                Full Name
               </label>
               <input
                 type="text"
                 value={reportedBy}
                 onChange={(e) => setReportedBy(e.target.value)}
-                placeholder="e.g. Kasiglahan Tanod / Resident"
+                placeholder="e.g. Juan Dela Cruz"
+                required
+                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Cellphone Number
+              </label>
+              <input
+                type="tel"
+                value={contactNumber}
+                onChange={(e) => setContactNumber(e.target.value)}
+                placeholder="e.g. 09171234567"
+                required
+                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Google Account
+              </label>
+              <input
+                type="email"
+                value={reporterEmail}
+                onChange={(e) => setReporterEmail(e.target.value)}
+                placeholder="e.g. sanjose12@gmail.com"
+                required
                 className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
               />
             </div>
@@ -504,20 +537,6 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide situational details, water depth, affected blocks, or emergency response instructions..."
-              className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
-            />
-          </div>
-
-          {/* Evacuation Center (if applicable) */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Designated Evacuation Facility (Optional)
-            </label>
-            <input
-              type="text"
-              value={evacuationCenter}
-              onChange={(e) => setEvacuationCenter(e.target.value)}
-              placeholder="e.g. Kasiglahan Village Elementary School Gym"
               className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900"
             />
           </div>

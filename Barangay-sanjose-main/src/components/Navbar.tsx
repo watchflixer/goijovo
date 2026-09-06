@@ -123,116 +123,50 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Center Quick Stats (Desktop) */}
-          <div className="hidden lg:flex items-center space-x-2.5 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200 text-xs">
-            {/* Black ●●● Options Menu Button */}
-            <div className="relative" ref={menuDropdownRef}>
-              <button
-                id="btn-options-dots"
-                onClick={() => setIsMenuDropdownOpen((prev) => !prev)}
-                title="Opsyon: Updates, Evacuation Centers, Resolved, History"
-                className={`flex items-center justify-center px-2 py-0.5 rounded-md hover:bg-slate-200 transition-colors cursor-pointer select-none ${
-                  isMenuDropdownOpen ? 'bg-slate-200' : ''
-                }`}
-              >
-                <span className="text-black font-black text-xs tracking-wider leading-none">
-                  ●●●
-                </span>
-              </button>
-
-              {/* 4-Item Dropdown Menu */}
-              {isMenuDropdownOpen && (
-                <div className="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
-                  <div className="py-1">
-                    <button
-                      onClick={() => {
-                        setIsMenuDropdownOpen(false);
-                        onOpenUpdates();
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <BellRing className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Updates</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setIsMenuDropdownOpen(false);
-                        onOpenEvacuationCenters();
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
-                      <span>Evacuation Centers</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setIsMenuDropdownOpen(false);
-                        onOpenResolvedCleared();
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Resolved / Cleared</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setIsMenuDropdownOpen(false);
-                        onOpenHistory();
-                      }}
-                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <History className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span>History</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="h-3 w-px bg-slate-200"></div>
-
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold ${fireCount > 0 ? 'bg-red-100 text-red-700' : 'text-slate-500'}`}>
-              <Flame className="w-3 h-3 text-red-500" />
+          <div className="hidden lg:flex items-center gap-2 -mr-24">
+            <div className="w-[480px] max-w-[480px] flex items-center justify-between bg-white px-3 py-1.5 rounded-md border border-slate-200 text-xs">
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[11px] font-semibold text-black whitespace-nowrap">
+              <Flame className="w-3 h-3 text-slate-700" />
               <span>{fireCount} Fire</span>
-            </div>
+              </div>
 
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold ${floodCount > 0 ? 'bg-blue-100 text-blue-700' : 'text-slate-500'}`}>
-              <Waves className="w-3 h-3 text-blue-500" />
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[11px] font-semibold text-black whitespace-nowrap">
+              <Waves className="w-3 h-3 text-slate-700" />
               <span>{floodCount} Flood</span>
             </div>
 
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold ${powerCount > 0 ? 'bg-amber-100 text-amber-700' : 'text-slate-500'}`}>
-              <Zap className="w-3 h-3 text-amber-500" />
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[11px] font-semibold text-black whitespace-nowrap">
+              <Zap className="w-3 h-3 text-slate-700" />
               <span>{powerCount} No Power</span>
             </div>
 
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold ${streetlightCount > 0 ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500'}`}>
-              <LightbulbOff className="w-3 h-3 text-indigo-600" />
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[11px] font-semibold text-black whitespace-nowrap">
+              <LightbulbOff className="w-3 h-3 text-slate-700" />
               <span>{streetlightCount} Streetlight</span>
             </div>
 
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold ${waterCount > 0 ? 'bg-cyan-100 text-cyan-700' : 'text-slate-500'}`}>
-              <Droplets className="w-3 h-3 text-cyan-500" />
+              <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[11px] font-semibold text-black whitespace-nowrap">
+              <Droplets className="w-3 h-3 text-slate-700" />
               <span>{waterCount} Water</span>
+              </div>
             </div>
 
-            <div className="pl-2 border-l border-slate-200 text-slate-500 font-mono text-[11px]">
-              {currentTime || 'PST'}
-            </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2">
-            {/* Mobile ●●● button so it's always accessible on mobile too */}
-            <div className="lg:hidden relative">
+            <div className="flex h-8 w-[76px] items-center justify-center mr-5 text-slate-800 font-sans font-semibold text-xs tracking-tight tabular-nums whitespace-nowrap">
+              {currentTime || 'PST'}
+            </div>
+
+            {/* ●●● options menu beside Hotlines */}
+            <div className="relative" ref={menuDropdownRef}>
               <button
                 onClick={() => setIsMenuDropdownOpen((prev) => !prev)}
                 title="Opsyon"
-                className="p-2 rounded-md hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                className="inline-flex h-8 items-center justify-center px-2 rounded-md hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
               >
-                <span className="text-black font-black text-xs tracking-wider leading-none">
+                <span className="text-black font-black text-[10px] tracking-wider leading-none">
                   ●●●
                 </span>
               </button>
@@ -289,18 +223,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             <button
-              id="btn-recenter-map"
-              onClick={handleRecenter}
-              title="Recenter Map"
-              className="p-2 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors active:scale-95 cursor-pointer"
-            >
-              <RefreshCw className={`w-4 h-4 transition-transform ${isSpinning ? 'animate-fast-spin text-slate-900' : 'text-slate-600'}`} />
-            </button>
-
-            <button
               id="btn-emergency-hotlines"
               onClick={onOpenHotlinesModal}
-              className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-colors"
+              className="hidden sm:inline-flex h-8 items-center space-x-1.5 px-3 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-colors"
             >
               <PhoneCall className="w-3.5 h-3.5 text-rose-500" />
               <span>Hotlines</span>
@@ -312,7 +237,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md shadow-xs transition-all"
             >
               <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Pin Hazard</span>
+              <span>Report</span>
             </button>
 
             {/* Mobile Menu Toggle */}
@@ -329,4 +254,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
-
