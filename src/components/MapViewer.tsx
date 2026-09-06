@@ -80,6 +80,9 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   const [showLayerMenu, setShowLayerMenu] = React.useState(false);
   const [isRecenterSpinning, setIsRecenterSpinning] = React.useState(false);
 
+  const effectiveTileLayer = isAddingPinMode ? 'streets' : mapSettings.tileLayer;
+  const effectiveMaskOpacity = isAddingPinMode ? 0 : mapSettings.maskOpacity;
+
   // 1. Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -104,7 +107,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     // Initial Tile Layer
-    const tileConfig = TILE_SERVERS[mapSettings.tileLayer];
+    const tileConfig = TILE_SERVERS[effectiveTileLayer];
     const tileLayer = L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
       maxZoom: 19,
@@ -115,7 +118,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const maskCoords = getInvertedMaskCoordinates(SAN_JOSE_POLYGON_COORDS);
     const mask = L.polygon(maskCoords as any, {
       fillColor: mapSettings.maskColor,
-      fillOpacity: mapSettings.maskOpacity,
+      fillOpacity: effectiveMaskOpacity,
       stroke: false,
       interactive: false,
       className: 'gis-blackout-mask'
@@ -176,7 +179,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   // 2. Update Tile Layer on setting change
   useEffect(() => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
-    const tileConfig = TILE_SERVERS[mapSettings.tileLayer];
+    const targetTile = isAddingPinMode ? 'streets' : mapSettings.tileLayer;
+    const tileConfig = TILE_SERVERS[targetTile];
     mapInstanceRef.current.removeLayer(tileLayerRef.current);
     const newLayer = L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
@@ -205,14 +209,16 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         }
       });
     }
-  }, [mapSettings.tileLayer]);
+  }, [effectiveTileLayer, isAddingPinMode, mapSettings.tileLayer]);
 
   // 3. Update Mask Opacity, Mask Color, and Boundary Stroke
   useEffect(() => {
     if (maskLayerRef.current) {
       maskLayerRef.current.setStyle({
         fillColor: mapSettings.maskColor,
-        fillOpacity: mapSettings.maskOpacity,
+        fillOpacity: effectiveMaskOpacity,
+        opacity: effectiveMaskOpacity,
+        display: effectiveMaskOpacity > 0 ? 'block' : 'none',
       });
     }
     if (boundaryLayerRef.current) {
@@ -221,7 +227,14 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         opacity: mapSettings.showBoundaryStroke ? 0.9 : 0,
       });
     }
-  }, [mapSettings.maskOpacity, mapSettings.maskColor, mapSettings.boundaryColor, mapSettings.showBoundaryStroke]);
+
+    if (mapInstanceRef.current) {
+      const mapContainer = mapInstanceRef.current.getContainer();
+      mapContainer.style.background = 'transparent';
+      mapContainer.style.filter = 'none';
+      mapContainer.style.opacity = '1';
+    }
+  }, [effectiveMaskOpacity, mapSettings.maskColor, mapSettings.boundaryColor, mapSettings.showBoundaryStroke, isAddingPinMode]);
 
   // 4. Update Camera Bounds lock
   useEffect(() => {

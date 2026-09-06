@@ -11,6 +11,16 @@ import { INITIAL_HAZARDS, SAN_JOSE_POLYGON_COORDS } from './data/geoData';
 import { useFloodStatus } from './hooks/useFloodStatus';
 import { classifyFloodLevel, SAN_JOSE_BRIDGE_COORDS, AUTO_FLOOD_ALERT_ID } from './lib/flood';
 
+const DEFAULT_WGS84_COORDS: [number, number] = [14.7425, 121.1310];
+
+const normalizeWgs84Coordinates = (coords: [number, number] | null | undefined): [number, number] => {
+  if (!coords || !Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
+    return DEFAULT_WGS84_COORDS;
+  }
+
+  return [Number(coords[0]), Number(coords[1])];
+};
+
 export default function App() {
   const [alerts, setAlerts] = useState<HazardAlert[]>(INITIAL_HAZARDS);
   const [selectedAlert, setSelectedAlert] = useState<HazardAlert | null>(null);
@@ -122,8 +132,14 @@ export default function App() {
   };
 
   const handleMapClickCoordinate = (coords: [number, number]) => {
-    setPickedCoordinates(coords);
+    const normalized = normalizeWgs84Coordinates(coords);
+    setPickedCoordinates(normalized);
     setIsAddingPinMode(false);
+    setMapSettings((prev) => ({
+      ...prev,
+      tileLayer: 'streets',
+      maskOpacity: 0.9,
+    }));
     setIsReportModalOpen(true);
   };
 
@@ -213,7 +229,14 @@ export default function App() {
         onClose={() => setIsReportModalOpen(false)}
         onAddAlert={handleAddAlert}
         selectedCoordinates={pickedCoordinates}
-        onEnablePickCoordinateMode={() => setIsAddingPinMode(true)}
+        onEnablePickCoordinateMode={() => {
+          setIsAddingPinMode(true);
+          setMapSettings((prev) => ({
+            ...prev,
+            tileLayer: 'streets',
+            maskOpacity: 0,
+          }));
+        }}
       />
 
       {/* Emergency Hotlines Directory Modal */}

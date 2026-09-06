@@ -95,9 +95,12 @@ export const AddHazardModal: React.FC<AddHazardModalProps> = ({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Default coordinate if none selected
-  const lat = selectedCoordinates ? selectedCoordinates[0] : 14.7430;
-  const lng = selectedCoordinates ? selectedCoordinates[1] : 121.1330;
+  const safeCoordinates: [number, number] = selectedCoordinates && Number.isFinite(selectedCoordinates[0]) && Number.isFinite(selectedCoordinates[1])
+    ? [Number(selectedCoordinates[0]), Number(selectedCoordinates[1])]
+    : [14.7425, 121.1310];
+
+  const lat = Number(safeCoordinates[0].toFixed(5));
+  const lng = Number(safeCoordinates[1].toFixed(5));
 
   if (!isOpen) return null;
 
